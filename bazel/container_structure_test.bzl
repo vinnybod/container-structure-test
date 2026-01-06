@@ -44,10 +44,12 @@ fi
 """
 
 def _structure_test_impl(ctx):
-    # --test-report writes JUnit XML to the file specified by $XML_OUTPUT_FILE
+    # --test-report writes to the file specified by $XML_OUTPUT_FILE
+    # --test-report-format junit ensures bazel-compatible JUnit XML output
     # stdout uses default text format for human-readable output (captured as test.log)
     fixed_args = [
         "--test-report $XML_OUTPUT_FILE",
+        "--test-report-format junit",
         "--junit-suite-name $TEST_TARGET",
     ]
     test_bin = ctx.toolchains["@container_structure_test//bazel:structure_test_toolchain_type"].st_info.binary
