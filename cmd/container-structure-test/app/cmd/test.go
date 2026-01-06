@@ -60,20 +60,15 @@ func NewCmdTest(out io.Writer) *cobra.Command {
 			return test.ValidateArgs(opts)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Open test report file if specified (for JUnit XML output)
+			var reportOut io.Writer
 			if opts.TestReport != "" {
-				// Force JsonOutput
-				if opts.Output == unversioned.Text {
-					opts.JSON = true
-					opts.Output = unversioned.Json
-
-					logrus.Warn("raw text format unsupported for writing output file, defaulting to JSON")
-				}
 				testReportFile, err := os.Create(opts.TestReport)
 				if err != nil {
 					return err
 				}
-				rootCmd.SetOutput(testReportFile)
-				out = testReportFile // override writer
+				defer testReportFile.Close()
+				reportOut = testReportFile
 			}
 
 			if opts.Quiet {
@@ -86,7 +81,7 @@ func NewCmdTest(out io.Writer) *cobra.Command {
 				opts.Output = unversioned.Json
 			}
 
-			return run(out)
+			return run(out, reportOut)
 		},
 	}
 
@@ -94,7 +89,7 @@ func NewCmdTest(out io.Writer) *cobra.Command {
 	return testCmd
 }
 
-func run(out io.Writer) error {
+func run(out, reportOut io.Writer) error {
 	args = &drivers.DriverConfig{
 		Image:    opts.ImagePath,
 		Save:     opts.Save,
@@ -153,7 +148,7 @@ func run(out io.Writer) error {
 		}
 		var r string
 		if r, err = daemon.Write(tag, img); err != nil {
-			logrus.Fatalf("error loading oci layout into daemon: %v, %s", err)
+			logrus.Fatalf("error loading oci layout into daemon: %v", err)
 		}
 		// For some reason, daemon.Write doesn't return errors for some edge cases.
 		// We should always print what the daemon sent back so that errors are transparent.
@@ -205,7 +200,7 @@ func run(out io.Writer) error {
 	channel := make(chan interface{}, 1)
 	go runTests(out, channel, args, driverImpl)
 	// TODO(nkubala): put a sync.WaitGroup here
-	return test.ProcessResults(out, opts.Output, opts.JunitSuiteName, channel)
+	return test.ProcessResults(out, reportOut, opts.Output, opts.JunitSuiteName, channel)
 }
 
 func runTests(out io.Writer, channel chan interface{}, args *drivers.DriverConfig, driverImpl func(drivers.DriverConfig) (drivers.Driver, error)) {
